@@ -1,5 +1,6 @@
+import registerListeners from "@/lib/ipc/listeners-register";
 import console from "console";
-import { BrowserWindow, app, ipcMain } from "electron";
+import { BrowserWindow, app, ipcMain, screen } from "electron";
 import path from "path";
 import puppeteer from "puppeteer";
 import * as qrcode from "qrcode";
@@ -9,26 +10,33 @@ let mainWindow: BrowserWindow | null = null;
 let whatsappClient: Client | null = null;
 
 function createWindow() {
+  // Use workAreaSize to avoid taskbar overlap
+  const workAreaSize = screen.getPrimaryDisplay().workAreaSize;
+  const width = 800;
+  const height = workAreaSize.height;
+  const x = workAreaSize.width - width;
+  const y = 0;
+
   mainWindow = new BrowserWindow({
-    width: 1600,
-    height: 1000,
+    width,
+    height,
+    x,
+    y,
     webPreferences: {
-      contextIsolation: false,
-      nodeIntegration: true,
-      nodeIntegrationInSubFrames: false,
+      contextIsolation: true,
       preload: path.join(__dirname, "preload.js"),
     },
   });
 
+  registerListeners(mainWindow);
+
   // Load a basic HTML file
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
+    mainWindow.webContents.openDevTools({ mode: "bottom" });
   } else {
-    mainWindow.loadFile(
-      path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`),
-    );
+    mainWindow.loadFile(path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`));
   }
-  mainWindow.webContents.openDevTools();
 
   // Initialize WhatsApp client
   initWhatsApp();
@@ -157,4 +165,18 @@ app.on("activate", () => {
   if (BrowserWindow.getAllWindows().length === 0) {
     createWindow();
   }
+});
+
+// Set up IPC handler
+ipcMain.handle("get-data", async (event, arg) => {
+  console.log("Received request with argument:", arg);
+
+  // Simulate some async operation
+  await new Promise((resolve) => setTimeout(resolve, 500));
+
+  return {
+    message: "Response from main process",
+    timestamp: new Date().toISOString(),
+    receivedArg: arg,
+  };
 });

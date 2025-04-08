@@ -1,7 +1,7 @@
 {
   "$schema": "https://biomejs.dev/schemas/1.9.4/schema.json",
   "vcs": { "enabled": false, "clientKind": "git", "useIgnoreFile": false },
-  "files": { "ignoreUnknown": false, "ignore": [] },
+  "files": { "ignoreUnknown": false, "ignore": ["./src/routeTree.gen.ts"] },
   "formatter": { "enabled": true, "indentStyle": "space" },
   "organizeImports": { "enabled": true },
   "linter": {
@@ -50,7 +50,7 @@
       "style": {
         "noInferrableTypes": "error",
         "noNamespace": "error",
-        "noNonNullAssertion": "warn",
+        "noNonNullAssertion": "off",
         "useAsConstAssertion": "error"
       },
       "suspicious": {

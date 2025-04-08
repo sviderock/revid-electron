@@ -1,1 +1,1 @@
-import "./react-entry";
+import "./App";
