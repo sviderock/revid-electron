@@ -1,0 +1,8 @@
+onlyBuiltDependencies:
+  - '@biomejs/biome'
+  - bufferutil
+  - electron
+  - electron-winstaller
+  - esbuild
+  - puppeteer
+  - utf-8-validate
