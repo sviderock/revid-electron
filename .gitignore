@@ -90,3 +90,6 @@ typings/
 
 # Electron-Forge
 out/
+.wwebjs_cache
+session
+sessions

@@ -1,5 +1,5 @@
 onlyBuiltDependencies:
-  - '@biomejs/biome'
+  - "@biomejs/biome"
   - bufferutil
   - electron
   - electron-winstaller

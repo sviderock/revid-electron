@@ -3,7 +3,7 @@
   "vcs": { "enabled": false, "clientKind": "git", "useIgnoreFile": false },
   "files": { "ignoreUnknown": false, "ignore": ["./src/routeTree.gen.ts"] },
   "formatter": { "enabled": true, "indentStyle": "space" },
-  "organizeImports": { "enabled": true },
+  "organizeImports": { "enabled": false },
   "linter": {
     "ignore": ["./node_modules/*"],
     "enabled": true,
