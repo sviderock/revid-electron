@@ -7,60 +7,77 @@ import { VitePlugin } from "@electron-forge/plugin-vite";
 import type { ForgeConfig } from "@electron-forge/shared-types";
 import { FuseV1Options, FuseVersion } from "@electron/fuses";
 import { readdirSync, statSync } from "fs";
-import { copy, mkdirs } from "fs-extra";
-import path, { dirname, join, resolve } from "path";
+import { rmdirSync } from "node:fs";
+import { normalize } from "node:path";
+import { join } from "path";
 
-function getInstalledPackagesString() {
-  const nodeModulesPath = path.join(process.cwd(), "node_modules");
+// Use flora-colossus for finding all dependencies of EXTERNAL_DEPENDENCIES
+// flora-colossus is maintained by MarshallOfSound (a top electron-forge contributor)
+// already included as a dependency of electron-packager/galactus (so we do NOT have to add it to package.json)
+// grabs nested dependencies from tree
+import { DepType, Walker, type Module } from "flora-colossus";
+let nativeModuleDependenciesToPackage: string[] = [];
 
-  try {
-    const packages = readdirSync(nodeModulesPath).filter((dir) => {
-      // Filter out dot files and directories that start with a dot.
-      if (dir.startsWith(".")) {
-        return false;
-      }
-      // Check if it is a directory.
-      const dirPath = path.join(nodeModulesPath, dir);
-      return statSync(dirPath).isDirectory();
-    });
+const EXTERNAL_DEPENDENCIES = ["puppeteer", "puppeteer-core", "fluent-ffmpeg", "better-sqlite3"];
 
-    return packages;
-  } catch (err) {
-    console.error("Error reading node_modules:", err);
-    return []; // Return empty object string on error.
-  }
-}
-
-const packagesString = getInstalledPackagesString();
-
-const requiredNativePackages = [
-  "puppeteer",
-  "puppeteer-core",
-  "fluent-ffmpeg",
-  "extract-zip",
-  "debug",
-  "ms",
-  "get-stream",
-  "pump",
-  "@puppeteer/browsers",
-  "semver",
-  "proxy-agent",
-  "lru-cache",
-  "agent-base",
-  "proxy-from-env",
-  "progress",
-  "yargs",
-];
-
+/**
+ * https://github.com/electron/forge/issues/3738#issuecomment-2622541945
+ */
 const config: ForgeConfig = {
   packagerConfig: {
-    asar: true,
-    // asar: {
-    // 	unpack: "*.{node,dylib}",
-    // 	unpackDir: packagesString,
+    prune: true,
+    asar: { unpackDir: "" },
+    ignore: (file) => {
+      const filePath = file.toLowerCase();
+      const KEEP_FILE = {
+        keep: false,
+        log: true,
+      };
+      // NOTE: must return false for empty string or nothing will be packaged
+      if (filePath === "") KEEP_FILE.keep = true;
+      if (!KEEP_FILE.keep && filePath === "/package.json") KEEP_FILE.keep = true;
+      if (!KEEP_FILE.keep && filePath === "/node_modules") KEEP_FILE.keep = true;
+      if (!KEEP_FILE.keep && filePath === "/.vite") KEEP_FILE.keep = true;
+      if (!KEEP_FILE.keep && filePath.startsWith("/.vite/")) KEEP_FILE.keep = true;
+      if (!KEEP_FILE.keep && filePath.startsWith("/node_modules/")) {
+        // check if matches any of the external dependencies
+        for (const dep of nativeModuleDependenciesToPackage) {
+          if (filePath === `/node_modules/${dep}/` || filePath === `/node_modules/${dep}`) {
+            KEEP_FILE.keep = true;
+            break;
+          }
+          if (filePath === `/node_modules/${dep}/package.json`) {
+            KEEP_FILE.keep = true;
+            break;
+          }
+          if (filePath.startsWith(`/node_modules/${dep}/`)) {
+            KEEP_FILE.keep = true;
+            KEEP_FILE.log = false;
+            break;
+          }
+        }
+      }
+      if (KEEP_FILE.keep) {
+        if (KEEP_FILE.log) console.log("Keeping:", file);
+        return false;
+      }
+      return true;
+    },
+
+    // if applicable, your other config / options / app info
+    overwrite: true,
+
+    // osxSign: {
+    //   // if applicable, your codesigning configuration here
+    // },
+
+    // osxNotarize: {
+    //   // if applicable, your notarization configuration here
     // },
   },
-  rebuildConfig: {},
+  rebuildConfig: {
+    force: true,
+  },
   makers: [new MakerSquirrel({}), new MakerZIP({}, ["darwin"]), new MakerRpm({}), new MakerDeb({})],
   plugins: [
     new VitePlugin({
@@ -103,29 +120,98 @@ const config: ForgeConfig = {
     },
   ],
   hooks: {
-    /**
-     * The call to this hook is mandatory for better-sqlite3 to work once the app built
-     * https://stackoverflow.com/a/79445715
-     */
-    async packageAfterCopy(_forgeConfig, buildPath) {
-      // __dirname isn't accessible from here
-      const dirnamePath: string = ".";
-      const sourceNodeModulesPath = resolve(dirnamePath, "node_modules");
-      const destNodeModulesPath = resolve(buildPath, "node_modules");
-
-      // Copy all asked packages in /node_modules directory inside the asar archive
-      await Promise.all(
-        packagesString.map(async (packageName) => {
-          const sourcePath = join(sourceNodeModulesPath, packageName);
-          const destPath = join(destNodeModulesPath, packageName);
-
-          await mkdirs(dirname(destPath));
-          await copy(sourcePath, destPath, {
-            recursive: true,
-            preserveTimestamps: true,
+    prePackage: async () => {
+      const projectRoot = normalize(__dirname);
+      const getExternalNestedDependencies = async (
+        nodeModuleNames: string[],
+        includeNestedDeps = true
+      ) => {
+        const foundModules = new Set(nodeModuleNames);
+        if (includeNestedDeps) {
+          for (const external of nodeModuleNames) {
+            type MyPublicClass<T> = {
+              [P in keyof T]: T[P];
+            };
+            type MyPublicWalker = MyPublicClass<Walker> & {
+              modules: Module[];
+              walkDependenciesForModule: (moduleRoot: string, depType: DepType) => Promise<void>;
+            };
+            const moduleRoot = join(projectRoot, "node_modules", external);
+            const walker = new Walker(moduleRoot) as unknown as MyPublicWalker;
+            walker.modules = [];
+            await walker.walkDependenciesForModule(moduleRoot, DepType.PROD);
+            walker.modules
+              .filter((dep) => (dep.nativeModuleType as number) === DepType.PROD)
+              // for a package like '@realm/fetch', need to split the path and just take the first part
+              .map((dep) => dep.name.split("/")[0]!)
+              .forEach((name) => foundModules.add(name));
+          }
+        }
+        return foundModules;
+      };
+      const nativeModuleDependencies = await getExternalNestedDependencies(EXTERNAL_DEPENDENCIES);
+      nativeModuleDependenciesToPackage = Array.from(nativeModuleDependencies);
+    },
+    packageAfterPrune: async (_forgeConfig, buildPath) => {
+      function getItemsFromFolder(
+        path: string,
+        totalCollection: {
+          path: string;
+          type: "directory" | "file";
+          empty: boolean;
+        }[] = []
+      ) {
+        try {
+          const normalizedPath = normalize(path);
+          const childItems = readdirSync(normalizedPath);
+          const getItemStats = statSync(normalizedPath);
+          if (getItemStats.isDirectory()) {
+            totalCollection.push({
+              path: normalizedPath,
+              type: "directory",
+              empty: childItems.length === 0,
+            });
+          }
+          childItems.forEach((childItem) => {
+            const childItemNormalizedPath = join(normalizedPath, childItem);
+            const childItemStats = statSync(childItemNormalizedPath);
+            if (childItemStats.isDirectory()) {
+              getItemsFromFolder(childItemNormalizedPath, totalCollection);
+            } else {
+              totalCollection.push({
+                path: childItemNormalizedPath,
+                type: "file",
+                empty: false,
+              });
+            }
           });
-        })
-      );
+        } catch {
+          return;
+        }
+        return totalCollection;
+      }
+
+      const getItems = getItemsFromFolder(buildPath) ?? [];
+      for (const item of getItems) {
+        const DELETE_EMPTY_DIRECTORIES = true;
+        if (item.empty === true) {
+          if (DELETE_EMPTY_DIRECTORIES) {
+            const pathToDelete = normalize(item.path);
+            // one last check to make sure it is a directory and is empty
+            const stats = statSync(pathToDelete);
+            if (!stats.isDirectory()) {
+              // SKIPPING DELETION: pathToDelete is not a directory
+              return;
+            }
+            const childItems = readdirSync(pathToDelete);
+            if (childItems.length !== 0) {
+              // SKIPPING DELETION: pathToDelete is not empty
+              return;
+            }
+            rmdirSync(pathToDelete);
+          }
+        }
+      }
     },
   },
 };

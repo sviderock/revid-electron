@@ -5,15 +5,14 @@ import { LoaderPinwheel } from "lucide-react";
 export const Route = createFileRoute("/")({
   component: Index,
   loader: async ({ context: { queryClient } }) => {
-    console.log(trpc.getUserState.queryOptions());
     const state = await queryClient.ensureQueryData(trpc.getUserState.queryOptions());
-    console.log({ state });
     if (state.connectionState === "CONNECTED") {
       throw redirect({ to: "/dashboard" });
     }
-    // if (state.qrcode) {
-    //   throw redirect({ to: "/login", search: { code: state.qrcode } });
-    // }
+
+    if (state.qrcode) {
+      throw redirect({ to: "/login", search: { code: state.qrcode } });
+    }
   },
 });
 

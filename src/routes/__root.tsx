@@ -18,8 +18,7 @@ export const Route = createRootRouteWithContext<{
 function RootComponent() {
   const router = useRouter();
 
-  console.log(1);
-  const { data } = useSubscription(
+  useSubscription(
     trpc.whatsappEvents.subscriptionOptions(void 0, {
       onError: console.log,
       onStarted: console.log,
@@ -33,8 +32,6 @@ function RootComponent() {
       },
     })
   );
-  console.log(2);
-  console.log(data);
 
   return (
     <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">

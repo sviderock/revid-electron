@@ -1,5 +1,6 @@
-import { router } from "@/electron/trpc";
-import { createContext } from "@/electron/trpc/context";
+import { db } from "@/db";
+import { router, trpcCreateCaller } from "@/electron/trpc";
+import { createContext, type Context } from "@/electron/trpc/context";
 import { WHATSAPP_CLIENT_EVENTS } from "@/electron/trpc/whatsapp-events";
 import { app, BrowserWindow, screen } from "electron";
 import Logger from "electron-log";
@@ -19,9 +20,7 @@ console.log({ logPath });
 let mainWindow: BrowserWindow | null = null;
 let whatsappClient: Client | null = null;
 
-// const store = new ElectronStore<{ qrcode: string }>({ qrcode: "" });
-
-function createWindow() {
+async function createWindow() {
   // Use workAreaSize to avoid taskbar overlap
   const workAreaSize = screen.getPrimaryDisplay().workAreaSize;
   const width = 800;
@@ -75,14 +74,17 @@ function createWindow() {
       console.error("Failed to initialize WhatsApp client:", err);
     });
 
-    // whatsappClient.on("qr", async (code) => {
+    whatsappClient.on("qr", async (code) => {
+      await trpcCaller.updateQRCode(code);
+    });
 
-    // });
+    const trpcContext: Context = { whatsappClient: whatsappClient!, db };
+    const trpcCaller = trpcCreateCaller(trpcContext);
 
     createIPCHandler({
       router,
       windows: [mainWindow],
-      createContext: (opts) => createContext({ whatsappClient: whatsappClient! }),
+      createContext: (opts) => createContext(trpcContext),
     });
   } catch (error) {
     console.error("Error setting up WhatsApp client:", error);

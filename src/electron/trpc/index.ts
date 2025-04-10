@@ -1,3 +1,4 @@
+import { qrcodesTable } from "@/db/schema";
 import type { Context } from "@/electron/trpc/context";
 import {
   WHATSAPP_CLIENT_EVENTS,
@@ -5,8 +6,10 @@ import {
   type WhatsappClientEventReturn,
 } from "@/electron/trpc/whatsapp-events";
 import { initTRPC } from "@trpc/server";
+import { eq } from "drizzle-orm";
 import { on } from "events";
 import SuperJSON from "superjson";
+import z from "zod";
 
 const t = initTRPC.context<Context>().create({
   isServer: true,
@@ -73,10 +76,26 @@ export const router = t.router({
     yield* mergedAsyncIterator();
   }),
 
+  updateQRCode: t.procedure.input(z.string().min(1)).mutation(async ({ ctx: { db }, input }) => {
+    const [existingCode] = await db.select().from(qrcodesTable).limit(1);
+
+    if (existingCode) {
+      await db
+        .update(qrcodesTable)
+        .set({ code: input })
+        .where(eq(qrcodesTable.id, existingCode!.id));
+    } else {
+      await db.insert(qrcodesTable).values({ code: input });
+    }
+  }),
+
   getUserState: t.procedure.query(async ({ ctx }) => {
     const connectionState = await ctx.whatsappClient.getState();
-    return { connectionState };
+    const [qrcode] = await ctx.db.select().from(qrcodesTable).limit(1);
+    return { connectionState, qrcode: qrcode?.code || "" };
   }),
 });
+
+export const trpcCreateCaller = t.createCallerFactory(router);
 
 export type AppRouter = typeof router;

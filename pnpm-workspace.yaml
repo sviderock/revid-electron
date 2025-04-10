@@ -1,8 +1,10 @@
 onlyBuiltDependencies:
-  - "@biomejs/biome"
+  - '@biomejs/biome'
+  - better-sqlite3
   - bufferutil
   - electron
   - electron-winstaller
   - esbuild
+  - lzma-native
   - puppeteer
   - utf-8-validate
