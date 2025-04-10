@@ -14,9 +14,7 @@ function Login() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
-    toCanvas(canvasRef.current, code, (error) => {
-      console.log(error);
-    });
+    toCanvas(canvasRef.current, code);
   }, [code]);
 
   return (

@@ -11,12 +11,23 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { Outlet, createFileRoute } from "@tanstack/react-router";
+import { useEffect } from "react";
 
 export const Route = createFileRoute("/dashboard")({
   component: Dashboard,
+  loader: async ({ context: { queryClient, trpc } }) => {
+    const data = await queryClient.ensureQueryData(trpc.getChats.queryOptions());
+    return data;
+  },
 });
 
 function Dashboard() {
+  const data = Route.useLoaderData();
+
+  useEffect(() => {
+    console.log(data);
+  }, [data]);
+
   return (
     <SidebarProvider>
       <AppSidebar />
