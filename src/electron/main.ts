@@ -1,8 +1,8 @@
 import { db } from "@/db";
+import { createContext, type Context } from "@/electron/context";
 import createWhatsappHandler from "@/electron/createWhatsappHandler";
 import { router } from "@/electron/trpc";
-import { createContext, type Context } from "@/electron/trpc/context";
-import { WHATSAPP_CLIENT_EVENTS } from "@/electron/trpc/whatsapp-events";
+import { WHATSAPP_CLIENT_EVENTS } from "@/electron/whatsapp-events";
 import { app, BrowserWindow, screen } from "electron";
 import Logger from "electron-log";
 import path from "path";
@@ -10,7 +10,9 @@ import puppeteer from "puppeteer";
 import { createIPCHandler } from "trpc-electron/main";
 import { Client, LocalAuth } from "whatsapp-web.js";
 
-const STORAGE_DIR = MAIN_WINDOW_VITE_DEV_SERVER_URL ? path.join(process.cwd(), "temp") : __dirname;
+export const STORAGE_DIR = MAIN_WINDOW_VITE_DEV_SERVER_URL
+  ? path.join(process.cwd(), "temp")
+  : __dirname;
 
 Logger.initialize({ preload: true });
 Logger.transports.file.resolvePathFn = (variables) => {

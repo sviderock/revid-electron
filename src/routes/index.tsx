@@ -19,7 +19,7 @@ export const Route = createFileRoute("/")({
 
 function Index() {
   return (
-    <div className="size-full flex flex-col items-center justify-center gap-2">
+    <div className="flex size-full flex-col items-center justify-center gap-2">
       <LoaderPinwheel className="size-50 animate-spin text-primary" />
       <span className="text-xl">Connecting to Whatsapp Client...</span>
     </div>
